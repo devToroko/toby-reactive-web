@@ -6,21 +6,21 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.web.embedded.netty.NettyReactiveWebServerFactory;
 import org.springframework.context.annotation.Bean;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.context.request.async.DeferredResult;
-import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.concurrent.CompletableFuture;
 
 @SpringBootApplication
 @RestController
 @Slf4j
+@EnableAsync
 public class TobyReactiveWebApplication {
 
     public static final String URL1 = "http://localhost:8081/service?req={req}";
@@ -65,21 +65,26 @@ public class TobyReactiveWebApplication {
 //                .flatMap(c -> c.bodyToMono(String.class));
 
         // 그런데 의존적인 API 호출은 어떻게 설정할까?
-        log.info(Thread.currentThread().getName() + " from outside " + idx);
         return client.get().uri(URL1, idx).exchange()
+                .doOnNext(res -> log.info(Thread.currentThread().getName() + " doOnNext")) // 디버깅도 쉽다!
                 .flatMap(c -> c.bodyToMono(String.class))
-                .flatMap(res1 -> {
-                    log.info(Thread.currentThread().getName() + " from inside " + idx);
-                    return client.get().uri(URL2, res1).exchange();
-                })
-                .flatMap(c -> c.bodyToMono(String.class));
+                .flatMap(res1 -> client.get().uri(URL2, res1).exchange())
+                .flatMap(c -> c.bodyToMono(String.class))
+                .doOnNext(log::info) // 쓰레드: [reactor-http-nio-1]
+                .flatMap(res2 -> Mono.fromCompletionStage(myService.work(res2)))
+                .doOnNext(log::info); // 쓰레드: [task-*] myService.work(res2)) 를 실제 수행하는 쓰레드가 다르다는 것을 알 수 있다.
+                // 하나의 netty worker 쓰레드를 쓰는데, 이게 블로킹되면 안된다.
+                // 그래서 위에서 어디서도 블로킹이 일어나지 않도록 한다!
 
+                // API 호출하는 동안 하나의 쓰레드가 묶여있지 않다는 것. 그게 가장 중요하다!
     }
 
     @Service
     public static class MyService {
-        public String work(String req) {
-            return req + "/asyncWork";
+        @Async // Future, ListenableFuture, CompletableFuture 셋 중 하나로 반환 ==> 쓰려면 @EnableAsync 를 써야한다!
+        public CompletableFuture<String> work(String req) {
+            return CompletableFuture.completedFuture(req + "asyncWork");
+//            return req + "/asyncWork";
         }
     }
 
@@ -87,6 +92,7 @@ public class TobyReactiveWebApplication {
 
     public static void main(String[] args) {
         System.setProperty("reactor.netty.ioWorkerCount", "1");
+//        System.setProperty("reactor.ipc.netty.workerCount", "2");
         System.setProperty("reactor.ipc.netty.pool.maxConnections", "2000");
         SpringApplication.run(TobyReactiveWebApplication.class, args);
     }
