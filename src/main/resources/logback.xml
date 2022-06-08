@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <property name="LOGS" value="./logs" />
+
+    <appender name="Console"
+              class="ch.qos.logback.core.ConsoleAppender">
+        <layout class="ch.qos.logback.classic.PatternLayout">
+            <Pattern>
+                %white(%date{HH:mm:ss.SSS}) %highlight(%-5level) [%blue(%t)] %yellow(%C{1}): %msg%n%throwable
+            </Pattern>
+        </layout>
+    </appender>
+
+    <!-- LOG everything at INFO level -->
+    <logger name="me.dailycode" level="INFO" additivity="false">
+        <appender-ref ref="Console" />
+    </logger>
+
+    <logger name="remoteserver" level="INFO" additivity="false">
+        <appender-ref ref="Console" />
+    </logger>
+
+
+    <!-- LOG "com.baeldung*" at TRACE level -->
+    <root level="INFO">
+        <appender-ref ref="Console" />
+    </root>
+
+</configuration>
