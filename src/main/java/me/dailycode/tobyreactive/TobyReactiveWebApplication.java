@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.web.reactive.WebFluxAutoConfiguration;
 import org.springframework.boot.web.embedded.netty.NettyReactiveWebServerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.scheduling.annotation.Async;
@@ -15,6 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import javax.net.ssl.SSLParameters;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 @SpringBootApplication
@@ -91,9 +97,17 @@ public class TobyReactiveWebApplication {
     @Autowired MyService myService;
 
     public static void main(String[] args) {
-        System.setProperty("reactor.netty.ioWorkerCount", "1");
+//        ReactorNetty
+//        org.springframework.boot.autoconfigure.web.client.RestTemplateAutoConfiguration
+        // WebFluxAutoConfiguration 를 참조하자.
+        //
 //        System.setProperty("reactor.ipc.netty.workerCount", "2");
-        System.setProperty("reactor.ipc.netty.pool.maxConnections", "2000");
+//        System.setProperty("reactor.ipc.netty.pool.maxConnections", "2000");
+        
+        // ReactorNetty 에 무도 기록되어 있음
+        // https://projectreactor.io/docs/netty/snapshot/reference/index.html#_metrics_5 참고!
+        System.setProperty("reactor.netty.ioWorkerCount", "1");
+        System.setProperty("reactor.netty.connection.provider.max.connections", "2000");
         SpringApplication.run(TobyReactiveWebApplication.class, args);
     }
 
