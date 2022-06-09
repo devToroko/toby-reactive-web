@@ -22,6 +22,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Flow;
 
 @SpringBootApplication
 @RestController
@@ -31,6 +32,44 @@ public class TobyReactiveWebApplication {
 
     public static final String URL1 = "http://localhost:8081/service?req={req}";
     public static final String URL2 = "http://localhost:8081/service2?req={req}";
+
+    @GetMapping("/")
+    Mono<String> hello() {
+        log.info("pos1");
+//        Mono<String> m = Mono.just("Hello WebFlux").log();
+        // just 는 이미 다 준비된 Publishing Data 를 인자로 받기 때문에
+        // 아래 처럼하면 myService.findById(1) 가 먼저 실행되고 그 결과값이 just 인자로 들어가는 것이다.
+//        Mono<String> m = Mono.just(myService.findById(1)).log();
+        // 어렵다면 아래처럼 생각하자.
+//        String s = generateHello();
+//        Mono<String> m = Mono.just(s).log();
+
+
+        // 콜백스타일을 쓰면 myService.findById(1) 도 subscribe 시점에 동작하도록 할 수 있다.
+        Mono<String> m =
+                Mono.fromSupplier(this::generateHello)//subscribe 하는 시점에 실제 수행
+                        .doOnNext(log::info)
+                        .log();
+        // cold publisher 이므로 여기서 한번 수행하고,
+        // return 에 의한 spring의 subscribe 에 의해 한번더 수행된다.
+        // 이런 cold publisher 는 데이터가 다 준비되고, 그 "준비된 데이터"를
+        // subscribe 가 일어나는 시점에 처음부터 끝까지 다 건네주는 게 특징이다.
+        m.subscribe();
+
+//        m.block(); // 이제 이 기능은 안된다!!! 완전히 막힘!
+
+        // 그렇다면 Hot Source 는? 실시간 이벤트! 가 대표적이다.
+        // 준비된 데이터가 아니라 정말 계속해서 생성될 수도 있는 데이터다.
+
+
+        log.info("pos2");
+        return m;
+    }
+
+    private String generateHello() {
+        log.info("method generateHello()");
+        return "Hello Mono";
+    }
 
     @Bean
     NettyReactiveWebServerFactory nettyReactiveWebServerFactory() {
@@ -100,14 +139,10 @@ public class TobyReactiveWebApplication {
 //        ReactorNetty
 //        org.springframework.boot.autoconfigure.web.client.RestTemplateAutoConfiguration
         // WebFluxAutoConfiguration 를 참조하자.
-        //
-//        System.setProperty("reactor.ipc.netty.workerCount", "2");
-//        System.setProperty("reactor.ipc.netty.pool.maxConnections", "2000");
-        
         // ReactorNetty 에 무도 기록되어 있음
         // https://projectreactor.io/docs/netty/snapshot/reference/index.html#_metrics_5 참고!
         System.setProperty("reactor.netty.ioWorkerCount", "1");
-        System.setProperty("reactor.netty.connection.provider.max.connections", "2000");
+        System.setProperty("reactor.netty.connection.provider.max.connections", "1000");
         SpringApplication.run(TobyReactiveWebApplication.class, args);
     }
 
